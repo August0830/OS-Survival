@@ -48,9 +48,9 @@ start:
 	movw %ax, %es
 	movw %ax, %ss
 	cli
-	in $0x92,%al
-	or $0x02,%al
-	out %al,$0x92 #A20
+	inb $0x92,%al
+	orb $0x02,%al
+	outb %al,$0x92 #A20
 	lgdt gdtDesc #GDTR TODO: Protected Mode Here
 	movl %cr0,%eax
 	orl  $0x1,%eax
@@ -73,31 +73,31 @@ start32:
 
 .p2align 2
 gdt: 
-	.word $0x0000
-	.word $0x0000
-	.word $0x0000
-	.word $0x0000
+	.word 0x0000
+	.word 0x0000
+	.word 0x0000
+	.word 0x0000
 	 #empty
 	
-	.word $0x00c0 #63~48
-	.byte $0x9a #47~40
-	.byte $0x00 #39~32
-	.word $0x0000 #32~16
-	.word $0xffff #15~0
+	.word 0xffff #15~0
+	.word 0x0000 #32~16
+	.byte 0x00 #39~32
+	.byte 0x9a #47~40
+	.word 0x00cf #63~48
 	 #cs
 	
-	.word $0x00c0 #63~48
-	.byte $0x92 #47~40
-	.byte $0x00 #39~32
-	.word $0x0000 #32~16
-	.word $0xffff #15~0
+	.word 0xffff #15~0 
+	.word 0x0000 #32~16
+	.byte 0x00 #39~32
+	.byte 0x92 #47~40
+	.word 0x00cf #63~48
 	#ds
 
-	.word $0x00c0 #63~48
-	.byte $0x81 #47~40
-	.byte $0x00 #39~32
-	.word $0x0000 #32~16
-	.word $0xffff #15~0
+	.word 0xffff #15~0
+	.word 0x8000 #32~16
+	.byte 0x0b #39~32
+	.byte 0x92 #47~40
+	.word 0x00cf #63~48
 	#tss
 		
 	#GDT definition here
