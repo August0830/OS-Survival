@@ -77,25 +77,28 @@ gdt:
 	.word $0x0000
 	.word $0x0000
 	.word $0x0000
-	.byte $0x00  #empty
+	 #empty
 	
-	.word $0x0000
-	.word $0x0000 
-	.word $0x03ff
-	.word $0xffff
-	.byte $0x9a #cs
+	.word $0x00c0 #63~48
+	.byte $0x9a #47~40
+	.byte $0x00 #39~32
+	.word $0x0000 #32~16
+	.word $0xffff #15~0
+	 #cs
 	
-	.word $0x0000
-	.word $0x0000 
-	.word $0x03ff
-	.word $0xffff
-	.byte $0x92 #ds
+	.word $0x00c0 #63~48
+	.byte $0x92 #47~40
+	.byte $0x00 #39~32
+	.word $0x0000 #32~16
+	.word $0xffff #15~0
+	#ds
 
-	.word $0x000b
-	.word $0x8000
-	.word $0x03ff
-	.word $0xffff
-	.byte $0x89 #tss
+	.word $0x00c0 #63~48
+	.byte $0x81 #47~40
+	.byte $0x00 #39~32
+	.word $0x0000 #32~16
+	.word $0xffff #15~0
+	#tss
 		
 	#GDT definition here
 
