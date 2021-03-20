@@ -70,7 +70,27 @@ start32:
 	movl $0x8000, %eax # setting esp
 	movl %eax, %esp
 	jmp bootMain # jump to bootMain in boot.c
+/*	pushl $13
+	pushl $message
+	calll displayStr
+loop:
+	jmp loop
 
+message:
+	.string "Hello, iWorld!\n\0"
+
+displayStr:
+	movl 4(%esp), %ebx
+	movl 8(%esp), %ecx
+	movl $((80*5+0)*2), %edi
+	movb $0x0c, %ah
+nextChar:
+	movb (%ebx), %al
+	movw %ax, %gs:(%edi)
+	addl $2, %edi
+	incl %ebx
+	loopnz nextChar # loopnz decrease ecx by 1
+	ret*/
 .p2align 2
 gdt: 
 	.word 0x0000
