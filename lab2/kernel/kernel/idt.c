@@ -63,6 +63,7 @@ void initIdt() {
 	 */
 	/* Exceptions with error code */
 	setTrap(idt + 0x8, SEG_KCODE, (uint32_t)irqDoubleFault, DPL_KERN);
+	setTrap(idt+0xa,SEg_KCODE,(uint32_t)ifqInvalidTSS,DPL_KERN);
 	// TODO: 填好剩下的表项
 	
 	/* Exceptions with DPL = 3 */
