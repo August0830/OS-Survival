@@ -30,7 +30,6 @@ void irqHandle(struct TrapFrame *tf) { // pointer tf = esp
 	//asm volatile("movw %%ax, %%es"::"a"(KSEL(SEG_KDATA)));
 	//asm volatile("movw %%ax, %%fs"::"a"(KSEL(SEG_KDATA)));
 	//asm volatile("movw %%ax, %%gs"::"a"(KSEL(SEG_KDATA)));
-	uint32_t addr=0;
 	switch(tf->irq) {
 		//填好中断处理程序的调用
 		case -1:break;
@@ -53,9 +52,8 @@ void KeyboardHandle(struct TrapFrame *tf){
 		if(displayCol!=0)
 		{
 			displayCol--;
-			bufferTail--;
-			if(bufferTail<bufferHead)
-				bufferTail=bufferHead;
+			if(bufferTail!=bufferHead)
+				bufferTail=(MAX_KEYBUFFER_SIZE+bufferTail-1)%MAX_KEYBUFFER_SIZE;
 		}
 	}else if(code == 0x1c){ // 回车符
 		//处理回车情况
@@ -66,17 +64,23 @@ void KeyboardHandle(struct TrapFrame *tf){
 			displayRow=24;
 			scrollScreen();
 		}
-		if(bufferTail<MAX_KEYBUFFER_SIZE)
+		if((bufferTail+1)%MAX_KEYBUFFER_SIZE!=bufferHead)
 		{
-			bufferTail++;
-			keyBuffer[bufferTail-1]='\n';		
+			keyBuffer[bufferTail]='\n';	
+			bufferTail=(bufferTail+1)%MAX_KEYBUFFER_SIZE;	
 		}	
 	}else if(code < 0x81){ // 正常字符
 		//注意输入的大小写的实现、不可打印字符的处理
-		if(bufferTail<MAX_KEYBUFFER_SIZE)
+		if((bufferTail+1)%MAX_KEYBUFFER_SIZE!=bufferHead)
 		{
-			bufferTail++;
-			keyBuffer[bufferTail-1]=getChar(code);
+			
+			char character=getChar(code);
+			keyBuffer[bufferTail]=character;
+			bufferTail=(bufferTail+1)%MAX_KEYBUFFER_SIZE;
+			//putChar(character);//print character
+			uint16_t data = character | (0x0c << 8);
+			int pos = (80*displayRow+displayCol)*2;
+			asm volatile("movw %0, (%1)"::"r"(data),"r"(pos+0xb8000));
 			displayCol++;
 			if(displayCol>=80)
 			{
@@ -85,13 +89,13 @@ void KeyboardHandle(struct TrapFrame *tf){
 				if(displayRow>=25)
 				{
 					displayRow=24;
-					displaycol=0;
+					displayCol=0;
 					scrollScreen();
 				}
 			}
 		}
 	}
-	syscall(SYS_WRITE, STD_OUT, (uint32_t)keyBuffer, (uint32_t)MAX_KEYBUFFER_SIZE, (uint32_t)bufferTail, 0);
+	
 	updateCursor(displayRow, displayCol);
 }
 
@@ -117,7 +121,7 @@ void syscallWrite(struct TrapFrame *tf) {
 }
 
 void syscallPrint(struct TrapFrame *tf) {
-	int sel = SEG_UDATA; // segment selector for user data, need further modification
+	int sel = USEL(SEG_UDATA); // segment selector for user data, need further modification
 	char *str = (char*)tf->edx;
 	int size = tf->ebx;
 	int i = 0;
@@ -127,12 +131,12 @@ void syscallPrint(struct TrapFrame *tf) {
 	asm volatile("movw %0, %%es"::"m"(sel));
 	for (i = 0; i < size; i++) {
 		asm volatile("movb %%es:(%1), %0":"=r"(character):"r"(str+i));
-		if(chracter!='\n')
+		if(character!='\n')
 		{
 			data = character | (0x0c << 8);
 			pos = (80*displayRow+displayCol)*2;
-			asm volatile("movw %0, (%1)"::"r"(data),"r"(pos+0xb8000));//print a character
-			displayCol++;
+			asm volatile("movw %0, (%1)"::"r"(data),"r"(pos+0xb8000));//print a character	
+			displayCol++;	
 			if(displayCol>=80)
 			{
 				displayCol=0;
@@ -155,7 +159,8 @@ void syscallPrint(struct TrapFrame *tf) {
 				displayCol=0;
 				scrollScreen();
 			}
-		}				
+		}//没有需要输出的
+				
 		//完成光标的维护和打印到显存
 	}
 	
@@ -175,12 +180,81 @@ void syscallRead(struct TrapFrame *tf){
 }
 
 void syscallGetChar(struct TrapFrame *tf){
-	// TODO: 自由实现
-	int sel = SEG_UDATA; // segment selector for user data, need further modification
-	char ch = (char)tf->edx;
-	int size = tf->ebx;
+	//自由实现
+	int sel = USEL(SEG_UDATA); // segment selector for user data, need further modification
+	char* str = (char*)tf->edx;
+	//int size = tf->ebx;
+	int i=0;
+	char character=0;
+	uint32_t code=0;
+	if((bufferTail+1)%MAX_KEYBUFFER_SIZE!=bufferHead)
+	{
+		while(code==0)
+			code=getKeyCode();	
+		keyBuffer[bufferTail]=code;
+		bufferTail=(bufferTail+1)%MAX_KEYBUFFER_SIZE;
+		//if(code==0x39 || code==0xB9 || code == 0x1c || code==0x9c)//空格和回车的按下和松开作为结束的标志 ?实现并没有局限于单个字符
+			//break;
+		code=0;
+	}
+	asm volatile("movw %0, %%es"::"m"(sel));
+	while(i < 1){//只返回一个
+		if(bufferHead!=bufferTail) {
+			character=getChar(keyBuffer[bufferHead]);
+			bufferHead=(bufferHead+1)%MAX_KEYBUFFER_SIZE;
+			//putChar(character);
+			uint16_t data = character | (0x0c << 8);
+			int pos = (80*displayRow+displayCol)*2;
+			asm volatile("movw %0, (%1)"::"r"(data),"r"(pos+0xb8000));//print a character	
+			if(character != 0) {
+				asm volatile("movb %0, %%es:(%1)"::"r"(character),"r"(str+i));
+				i++;
+			}
+		}
+		else
+			break;
+    	}
+	asm volatile("movb $0x00, %%es:(%0)"::"r"(str+i));
+	return;
 }
 
 void syscallGetStr(struct TrapFrame *tf){
-	// TODO: 自由实现
+	//自由实现
+	int sel = USEL(SEG_UDATA);
+	char *str = (char*)tf->edx;
+	int size=tf->ebx;
+	int i=0;
+	char character=0;
+	uint32_t code=0;
+	while((bufferTail+1)%MAX_KEYBUFFER_SIZE!=bufferHead)
+	{
+		while(code==0)
+			code=getKeyCode();
+		keyBuffer[bufferTail]=code;
+		bufferTail=(bufferTail+1)%MAX_KEYBUFFER_SIZE;
+		if(code == 0x1c || code==0x9c)//回车按下和松开作为结束的标志
+			break;
+		code=0;
+	}
+	asm volatile ("movw %0, %%es"::"m"(sel));
+	while(i<size-1)
+	{
+		if(bufferHead!=bufferTail)//buffer is not empty
+		{
+			character=getChar(keyBuffer[bufferHead]);
+			bufferHead=(bufferHead+1)%MAX_KEYBUFFER_SIZE;
+			//putChar(character);
+			uint16_t data = character | (0x0c << 8);
+			int pos = (80*displayRow+displayCol)*2;
+			asm volatile("movw %0, (%1)"::"r"(data),"r"(pos+0xb8000));//print a character	
+			if(character!=0)
+			{
+				asm volatile("movb %%es:(%1), %0":"=r"(character):"r"(str+i));//use assembly to fill the string in memory
+				i++;
+			}
+		}
+	
+	}
+	asm volatile("movb $0x00, %%es:(%0)"::"r"(str+i));//end of '\0'
+	return ;
 }

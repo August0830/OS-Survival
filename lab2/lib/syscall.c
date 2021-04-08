@@ -1,11 +1,7 @@
 #include "lib.h"
 #include "types.h"
 
-typedef char* va_list;
-#define _INTSIZEOF(n) ((sizeof(n)+sizeof(int)-1)& ~(sizeof(int)-1))
-#define va_start(ap,format) (ap=(va_list)&format+ _INTSIZEOF(format))
-#define va_arg(ap,type) (*(type*)((ap+=_INTSIZEOF(type))-_INTSIZEOF(type)))
-#define va_end(ap) (ap = (va_list)0) 
+ 
 /*
  * io lib here
  * 库函数写在这
@@ -63,6 +59,7 @@ int32_t syscall(int num, uint32_t a1,uint32_t a2,
 
 char getChar(){ // 对应SYS_READ STD_IN
 	// TODO: 实现getChar函数，方式不限
+	return 'a';
 }
 
 void getStr(char *str, int size){ // 对应SYS_READ STD_STR
@@ -75,51 +72,78 @@ int hex2Str(uint32_t hexadecimal, char *buffer, int size, int count);
 int str2Str(char *string, char *buffer, int size, int count);
 
 void printf(const char *format,...){
-	va_list ap;
-	va_start(ap,format);
 	int i=0; // format index
 	char buffer[MAX_BUFFER_SIZE];
 	int count=0; // buffer index
 	int index=0; // parameter index
-	void *paraList=(void*)&format; // address of format in stack
+	void *paraList=(void*)&format+sizeof(int); // address of format in stack
 	int state=0; // 0: legal character; 1: '%'; 2: illegal format
 	int decimal=0;//%d
 	uint32_t hexadecimal=0;//%x
 	char *string=0;//%s
 	char character=0;//%c
+	char ch=0;
 	while(format[i]!=0){
-		buffer[count] = format[i];
-		count++;
 		//in lab2
-		if(format[i]=='%')
+		ch=format[i++];
+		switch(state)
 		{
-			count--;i++;
-			switch(format[i])
-			{
-				case 'c':character=va_arg(ap,char); 
+			case 0:
+				if(ch=='%') 
+					state=1;
+				else
+					buffer[count++]=ch;
+				break;
+			case 1:
+				if(ch=='d')
+				{
+					decimal=*(int*)paraList;
+					paraList+=4;//指针移动
+					count = dec2Str(decimal,buffer,MAX_BUFFER_SIZE,count);
+					index++;
+				}
+				else if(ch=='x')
+				{
+					hexadecimal=*(uint32_t*)paraList;
+					paraList+=4;
+					count=hex2Str(hexadecimal,buffer,MAX_BUFFER_SIZE,count);
+					index++;
+				}
+				else if(ch=='s')
+				{
+					string=*(char**)paraList;
+					paraList+=4;
+					count=str2Str(string,buffer,MAX_BUFFER_SIZE,count);
+					index++;
+				}
+				else if(ch=='c')
+				{
+					character=*(char*)paraList;
+					paraList+=4;
 					buffer[count++]=character;
-					break;
-				case 'd':decimal=va_arg(ap,int);
-					dec2Str(decimal,buffer,(uint32_t)MAX_BUFFER_SIZE,count);
-					break;
-				case 's':string = va_arg(ap,char*);
-					str2Str(string,buffer,(uint32_t)MAX_BUFFER_SIZE,count);
-					break;
-				case 'x':hexadecimal=va_arg(ap,uint32_t);
-					hex2Str(string,buffer,(uint32_t)MAX_BUFFER_SIZE,count);
-					break;
-			}
+					if(count==MAX_BUFFER_SIZE)
+					{
+						syscall(SYS_WRITE,STD_OUT,(uint32_t)buffer,MAX_BUFFER_SIZE,0,0);
+						count=0;//满了就一次性输出
+					}
+					index++;
+				}
+				else
+				{
+					state=2;
+					return ;
+				}
+				state=0;
+				break;
+			case 2: return ;
+			default : break;
+				
 		}
-		if(count==MAX_BUFFER_SIZE)
-		{
-			syscall(SYS_WRITE, STD_OUT, (uint32_t)buffer, (uint32_t)count, 0, 0);
-			count=0;
-		}
-		++i;
+		
 	}
 	if(count!=0)
 		syscall(SYS_WRITE, STD_OUT, (uint32_t)buffer, (uint32_t)count, 0, 0);
-	va_end(ap);
+	
 }
 
 int dec2Str(int decimal, char *buffer, int size, int count) {

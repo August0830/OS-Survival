@@ -46,7 +46,7 @@ void enterUserSpace(uint32_t entry) {
 	asm volatile("popl %0":"=r" (EFLAGS));
 	asm volatile("pushl %0"::"r"(EFLAGS|0x200));
 	asm volatile("pushl %0":: "r" (USEL(SEG_UCODE))); // push cs
-	asm volatile("pushl %0":: "r" (entry)); 
+	asm volatile("pushl %0":: "r" (entry));
 	asm volatile("iret");
 }
 
@@ -62,21 +62,21 @@ void loadUMain(void) {
 	int i = 0;
 	int phoff = 0x34;
 	int offset = 0x1000;
-	unsigned int elf = 0x200000;
-	uint32_t uMainEntry=0x00200000;
+	uint32_t elf = 0x200000;
+	uint32_t uMainEntry=0x200000;
 
 	for (i = 0; i < 200; i++) {
 		readSect((void*)(elf + i*512), 201+i);
 	}
 
 	//填写uMainEntry、phoff、offset
-	uMainEntry=(void(*)(void))((struct ELFHeader*)elf)->entry;
-	phoff=((struct* ELFHeader*)elf)->phoff;
+	uMainEntry=((struct ELFHeader*)elf)->entry;
+	phoff=((struct ELFHeader*)elf)->phoff;
 	offset = ((struct ProgramHeader*)(elf+phoff))->off;
 	for (i = 0; i < 200 * 512; i++) {
-		*(unsigned char *)(elf + i) = *(unsigned char *)(elf + i + offset);
+		*(uint8_t *)(elf + i) = *(uint8_t *)(elf + i + offset);
 	}
 
-	
+	//putChar('w');
 	enterUserSpace(uMainEntry);
 }

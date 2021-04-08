@@ -11,13 +11,13 @@ struct GateDescriptor idt[NR_IRQ]; // NR_IRQ=256, defined in x86/cpu.h
 static void setIntr(struct GateDescriptor *ptr, uint32_t selector, uint32_t offset, uint32_t dpl) {
 	//初始化interrupt gate
 	ptr->offset_15_0=offset & (0xffff);
-	ptr->segment=selector;
+	ptr->segment=selector<<3;
 	ptr->pad0=0;
 	ptr->type=0xe;
 	ptr->system=0;
 	ptr->privilege_level=dpl;
 	ptr->present=1;
-	ptr->offset_31_16=offset&(0xffff0000);
+	ptr->offset_31_16=(offset>>16)&(0xffff);
 	
 }
 
@@ -25,13 +25,13 @@ static void setIntr(struct GateDescriptor *ptr, uint32_t selector, uint32_t offs
 static void setTrap(struct GateDescriptor *ptr, uint32_t selector, uint32_t offset, uint32_t dpl) {
 	//初始化trap gate
 	ptr->offset_15_0=offset & (0xffff);
-	ptr->segment=selector;
+	ptr->segment=selector<<3;
 	ptr->pad0=0;
 	ptr->type=0xf;
 	ptr->system=0;
 	ptr->privilege_level=dpl;
 	ptr->present=1;
-	ptr->offset_31_16=offset&(0xffff0000);
+	ptr->offset_31_16=(offset>>16)&(0xffff);
 
 }
 
@@ -63,12 +63,18 @@ void initIdt() {
 	 */
 	/* Exceptions with error code */
 	setTrap(idt + 0x8, SEG_KCODE, (uint32_t)irqDoubleFault, DPL_KERN);
-	setTrap(idt+0xa,SEg_KCODE,(uint32_t)ifqInvalidTSS,DPL_KERN);
-	// TODO: 填好剩下的表项
+	setTrap(idt+0xa,SEG_KCODE,(uint32_t)irqInvalidTSS,DPL_KERN);
+	setTrap(idt+0xb,SEG_KCODE,(uint32_t)irqSegNotPresent,DPL_KERN);
+	setTrap(idt+0xc,SEG_KCODE,(uint32_t)irqStackSegFault,DPL_KERN);
+	setTrap(idt+0xd,SEG_KCODE,(uint32_t)irqGProtectFault,DPL_KERN);
+	setTrap(idt+0xe,SEG_KCODE,(uint32_t)irqPageFault,DPL_KERN);
+	setTrap(idt+0x11,SEG_KCODE,(uint32_t)irqAlignCheck,DPL_KERN);
+	setTrap(idt+0x1e,SEG_KCODE,(uint32_t)irqSecException,DPL_KERN);
 	
 	/* Exceptions with DPL = 3 */
-	// TODO: 填好剩下的表项 
-
+	//填好剩下的表项 
+	setIntr(idt+0x21,SEG_KCODE,(uint32_t)irqKeyboard,DPL_KERN);
+	setIntr(idt+0x80,SEG_KCODE,(uint32_t)irqSyscall,DPL_USER);
 	/* 写入IDT */
 	saveIdt(idt, sizeof(idt));
 }
