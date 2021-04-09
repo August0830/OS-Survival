@@ -209,7 +209,7 @@ void syscallGetChar(struct TrapFrame *tf){
 
 void syscallGetStr(struct TrapFrame *tf){
 	//自由实现
-	asm volatile("sti");
+	//asm volatile("sti");
 	int sel = USEL(SEG_UDATA);
 	char *str = (char*)tf->edx;
 	int size=tf->ebx;
@@ -220,7 +220,7 @@ void syscallGetStr(struct TrapFrame *tf){
 	asm volatile("sti"::);
 	while(1)
 	{
-		//code=getKeyCode();
+		code=getKeyCode();
 		character=keyBuffer[bufferTail-1];
 		if(character=='\n' || code==0x1c || code==0x9c)
 			break;
@@ -240,5 +240,6 @@ void syscallGetStr(struct TrapFrame *tf){
 			break;
     	}
 	asm volatile("movb $0x00, %%es:(%0)"::"r"(str+i));
+	asm volatile("sti"::);
 	return ;
 }
