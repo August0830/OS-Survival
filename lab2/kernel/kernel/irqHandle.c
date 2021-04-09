@@ -34,6 +34,7 @@ void irqHandle(struct TrapFrame *tf) { // pointer tf = esp
 		//填好中断处理程序的调用
 		case -1:break;
 		case 0xd: GProtectFaultHandle(tf);break;
+		case 0x21:KeyboardHandle(tf);break;
 		case 0x80: syscallHandle(tf);break;
 		default:assert(0);
 	}
@@ -174,6 +175,7 @@ void syscallRead(struct TrapFrame *tf){
 			break; // for STD_IN
 		case 1:
 			syscallGetStr(tf);
+			//putChar('y');
 			break; // for STD_STR
 		default:break;
 	}
@@ -187,34 +189,17 @@ void syscallGetChar(struct TrapFrame *tf){
 	int i=0;
 	char character=0;
 	uint32_t code=0;
-	if((bufferTail+1)%MAX_KEYBUFFER_SIZE!=bufferHead)
-	{
-		while(code==0)
-			code=getKeyCode();	
-		keyBuffer[bufferTail]=code;
-		bufferTail=(bufferTail+1)%MAX_KEYBUFFER_SIZE;
-		//if(code==0x39 || code==0xB9 || code == 0x1c || code==0x9c)//空格和回车的按下和松开作为结束的标志 ?实现并没有局限于单个字符
-			//break;
-		code=0;
-	}
 	asm volatile("movw %0, %%es"::"m"(sel));
-	while(i < 1){//只返回一个
-		if(bufferHead!=bufferTail) {
-			character=getChar(keyBuffer[bufferHead]);
-			bufferHead=(bufferHead+1)%MAX_KEYBUFFER_SIZE;
-			//putChar(character);
-			uint16_t data = character | (0x0c << 8);
-			int pos = (80*displayRow+displayCol)*2;
-			asm volatile("movw %0, (%1)"::"r"(data),"r"(pos+0xb8000));//print a character	
-			if(character != 0) {
-				asm volatile("movb %0, %%es:(%1)"::"r"(character),"r"(str+i));
-				i++;
-			}
-		}
-		else
-			break;
-    	}
+	while(code==0)	
+	{
+		code=getKeyCode();
+		character=getChar(code);
+		//putChar(character);
+	}
+	asm volatile("movb %0, %%es:(%1)"::"r"(character),"r"(str+i));
+	i++;
 	asm volatile("movb $0x00, %%es:(%0)"::"r"(str+i));
+	bufferTail=bufferHead;
 	return;
 }
 
@@ -226,17 +211,22 @@ void syscallGetStr(struct TrapFrame *tf){
 	int i=0;
 	char character=0;
 	uint32_t code=0;
+	asm volatile ("movw %0, %%es"::"m"(sel));
+	bufferTail=bufferHead;
 	while((bufferTail+1)%MAX_KEYBUFFER_SIZE!=bufferHead)
 	{
-		while(code==0)
+		
+		while(code==0)	
+		{
 			code=getKeyCode();
-		keyBuffer[bufferTail]=code;
-		bufferTail=(bufferTail+1)%MAX_KEYBUFFER_SIZE;
-		if(code == 0x1c || code==0x9c)//回车按下和松开作为结束的标志
-			break;
+			character=getChar(code);
+			keyBuffer[bufferTail]=character;
+		}
 		code=0;
+		asm volatile("sti"::);
+		if(character=='\n')
+			break;
 	}
-	asm volatile ("movw %0, %%es"::"m"(sel));
 	while(i<size-1)
 	{
 		if(bufferHead!=bufferTail)//buffer is not empty
@@ -244,17 +234,20 @@ void syscallGetStr(struct TrapFrame *tf){
 			character=getChar(keyBuffer[bufferHead]);
 			bufferHead=(bufferHead+1)%MAX_KEYBUFFER_SIZE;
 			//putChar(character);
-			uint16_t data = character | (0x0c << 8);
-			int pos = (80*displayRow+displayCol)*2;
-			asm volatile("movw %0, (%1)"::"r"(data),"r"(pos+0xb8000));//print a character	
+			if(character == '\n')
+				break;
 			if(character!=0)
 			{
-				asm volatile("movb %%es:(%1), %0":"=r"(character):"r"(str+i));//use assembly to fill the string in memory
+				asm volatile("movb %0, %%es:(%1)"::"r"(character),"r"(str+i));//use assembly to fill the string in memory
 				i++;
 			}
 		}
+		else 
+			break;
 	
 	}
+	bufferHead=bufferTail;
 	asm volatile("movb $0x00, %%es:(%0)"::"r"(str+i));//end of '\0'
+	asm volatile("cli"::);
 	return ;
 }
